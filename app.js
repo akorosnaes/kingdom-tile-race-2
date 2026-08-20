@@ -43,8 +43,8 @@ const GOOGLE_SHEET_REFRESH_MS = 5000;
    ============================================================ */
 
 const TEAM_DISPLAY_NAMES = {
-  red: "Red Team",
-  green: "Green Team"
+  red: "Team X",
+  green: "Team Y"
 };
 
 // V77 — LOGICAL BOARD COORDINATES
@@ -110,17 +110,74 @@ function applyTeamTileHighlights() {
 }
 
 function updateTeamDisplay() {
+  const redTile = teamState["Red Team"];
+  const greenTile = teamState["Green Team"];
+
   if (redStatus) {
-    redStatus.textContent =
-      `${TEAM_DISPLAY_NAMES.red} - Tile ${teamState["Red Team"]}`;
+    redStatus.innerHTML = `
+      <span class="team-status-main">
+        ${TEAM_DISPLAY_NAMES.red} - Tile ${redTile}
+      </span>
+      <span class="team-current-objective">
+        Current Objective: ${escapeHtml(TILE_CONFIG?.[redTile]?.info || "No tile information")}
+      </span>
+    `;
   }
 
   if (greenStatus) {
-    greenStatus.textContent =
-      `${TEAM_DISPLAY_NAMES.green} - Tile ${teamState["Green Team"]}`;
+    greenStatus.innerHTML = `
+      <span class="team-status-main">
+        ${TEAM_DISPLAY_NAMES.green} - Tile ${greenTile}
+      </span>
+      <span class="team-current-objective">
+        Current Objective: ${escapeHtml(TILE_CONFIG?.[greenTile]?.info || "No tile information")}
+      </span>
+    `;
   }
 
+  updateFullTileInfoTeamIndicators();
   applyTeamTileHighlights();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function updateFullTileInfoTeamIndicators() {
+  document.querySelectorAll(".full-tile-info-row").forEach(row => {
+    const tileNumber = Number(row.dataset.tile);
+    const redHere = tileNumber === teamState["Red Team"];
+    const greenHere = tileNumber === teamState["Green Team"];
+    const indicator = row.querySelector(".full-tile-team-indicators");
+
+    if (!indicator) return;
+
+    indicator.innerHTML = "";
+
+    if (redHere) {
+      const dot = document.createElement("span");
+      dot.className = "full-tile-team-dot full-tile-team-red";
+      dot.textContent = "●";
+      dot.title = `${TEAM_DISPLAY_NAMES.red} is on Tile ${tileNumber}`;
+      indicator.appendChild(dot);
+    }
+
+    if (greenHere) {
+      const dot = document.createElement("span");
+      dot.className = "full-tile-team-dot full-tile-team-green";
+      dot.textContent = "●";
+      dot.title = `${TEAM_DISPLAY_NAMES.green} is on Tile ${tileNumber}`;
+      indicator.appendChild(dot);
+    }
+
+    row.classList.toggle("has-red-team", redHere);
+    row.classList.toggle("has-green-team", greenHere);
+  });
 }
 
 function normalizeTeamName(value) {
@@ -260,8 +317,8 @@ function updateFromGoogleSheet() {
   }, 4500);
 }
 
-updateTeamDisplay();
-
+// Google Sheet polling starts here. TILE_CONFIG is initialized below;
+// updateTeamDisplay is called again after TILE_CONFIG exists.
 updateFromGoogleSheet();
 setInterval(updateFromGoogleSheet, GOOGLE_SHEET_REFRESH_MS);
 
@@ -649,6 +706,9 @@ const TILE_CONFIG = {
   65: { image: "images/tile65.png", info: "Any Nex unique" }
 };
 
+// TILE_CONFIG now exists, so render the initial team objectives.
+updateTeamDisplay();
+
 // ============================================================
 // NUMBERED TILES
 // ============================================================
@@ -825,3 +885,893 @@ for (const [id, [x, y]] of Object.entries(positions)) {
    ================================================================ */
 
 setTimeout(applyTeamTileHighlights, 0);
+
+/* ============================================================
+   FULL TILE INFO SIDE PANEL
+   ============================================================
+
+   Click the "FULL TILE INFO" tab to open/close the complete
+   tile list.
+
+   Hovering a tile in this list temporarily highlights the
+   corresponding tile on the board.
+
+   The hover effect uses a strong "selected tile" treatment
+   rather than a white glow.
+
+   IMPORTANT:
+   The board tile's transform is NEVER modified by this effect.
+   ============================================================ */
+
+(function createFullTileInfoPanel() {
+
+  // ------------------------------------------------------------
+  // PANEL HTML
+  // ------------------------------------------------------------
+
+  const panel = document.createElement("div");
+  panel.id = "full-tile-info-panel";
+
+  const tab = document.createElement("button");
+  tab.id = "full-tile-info-tab";
+  tab.type = "button";
+  tab.textContent = "FULL TILE INFO";
+  tab.setAttribute("aria-expanded", "false");
+
+  const card = document.createElement("div");
+  card.id = "full-tile-info-card";
+
+  const title = document.createElement("div");
+  title.id = "full-tile-info-title";
+  title.textContent = "Full Tile List";
+
+  const list = document.createElement("div");
+  list.id = "full-tile-info-list";
+
+
+  // ------------------------------------------------------------
+  // TEMPORARY BOARD HIGHLIGHT
+  // ------------------------------------------------------------
+
+  function clearListHoverHighlight() {
+
+    document
+      .querySelectorAll(".tile.full-info-hover")
+      .forEach(tile => {
+
+        tile.classList.remove("full-info-hover");
+
+      });
+
+  }
+
+
+  function highlightBoardTile(tileNumber) {
+
+    clearListHoverHighlight();
+
+    const boardTile =
+      document.querySelector(
+        `.tile[data-tile="${tileNumber}"]`
+      );
+
+    if (!boardTile) return;
+
+    boardTile.classList.add("full-info-hover");
+
+  }
+
+
+  // ------------------------------------------------------------
+  // BUILD TILE LIST FROM TILE_CONFIG
+  // ------------------------------------------------------------
+
+  for (let tileNumber = 1; tileNumber <= 65; tileNumber++) {
+
+    const config = TILE_CONFIG[tileNumber];
+
+    const row = document.createElement("div");
+
+    row.className =
+      "full-tile-info-row";
+
+    row.dataset.tile =
+      tileNumber;
+
+
+    // ----------------------------------------------------------
+    // TILE NUMBER
+    // ----------------------------------------------------------
+
+    const number = document.createElement("span");
+
+    number.className =
+      "full-tile-info-number";
+
+    number.textContent =
+      tileNumber;
+
+
+    // ----------------------------------------------------------
+    // SEPARATOR
+    // ----------------------------------------------------------
+
+    const separator = document.createElement("span");
+
+    separator.className =
+      "full-tile-info-separator";
+
+    separator.textContent =
+      " - ";
+
+
+    // ----------------------------------------------------------
+    // TILE OBJECTIVE
+    // ----------------------------------------------------------
+
+    const info = document.createElement("span");
+
+    info.className =
+      "full-tile-info-text";
+
+    info.textContent =
+      config?.info || "No tile information";
+
+
+    const teamIndicators = document.createElement("span");
+    teamIndicators.className = "full-tile-team-indicators";
+    teamIndicators.setAttribute("aria-label", "Teams currently on this tile");
+
+    row.appendChild(number);
+    row.appendChild(separator);
+    row.appendChild(info);
+    row.appendChild(teamIndicators);
+
+    list.appendChild(row);
+
+
+    // ----------------------------------------------------------
+    // HOVER → BOARD TILE
+    // ----------------------------------------------------------
+
+    row.addEventListener("pointerenter", () => {
+
+      highlightBoardTile(tileNumber);
+
+    });
+
+
+    row.addEventListener("pointerleave", () => {
+
+      clearListHoverHighlight();
+
+    });
+
+  }
+
+
+  // ------------------------------------------------------------
+  // BUILD PANEL
+  // ------------------------------------------------------------
+
+  card.appendChild(title);
+  card.appendChild(list);
+
+  panel.appendChild(tab);
+  panel.appendChild(card);
+
+  document.body.appendChild(panel);
+
+  // Populate current team markers now that the tile rows exist.
+  updateFullTileInfoTeamIndicators();
+
+
+  // ============================================================
+  // STYLING
+  // ============================================================
+
+  const style =
+    document.createElement("style");
+
+
+  style.textContent = `
+
+    /* ========================================================
+       FULL TILE INFO PANEL
+       ======================================================== */
+
+    #full-tile-info-panel {
+
+      position: fixed;
+
+      left: 0;
+      top: 50%;
+
+      transform:
+        translateY(-50%);
+
+      z-index:
+        100000;
+
+      display:
+        flex;
+
+      align-items:
+        center;
+
+      pointer-events:
+        none;
+
+      font-family:
+        "Trebuchet MS",
+        "Arial Rounded MT Bold",
+        Arial,
+        sans-serif;
+
+    }
+
+
+    /* ========================================================
+       SIDE BUTTON
+       ======================================================== */
+
+    #full-tile-info-tab {
+
+      width:
+        145px;
+
+      height:
+        42px;
+
+      display:
+        flex;
+
+      align-items:
+        center;
+
+      justify-content:
+        center;
+
+      padding:
+        0;
+
+      background:
+        linear-gradient(
+          180deg,
+          rgba(250, 250, 250, .98),
+          rgba(215, 215, 215, .98)
+        );
+
+      color:
+        #4a4a4a;
+
+      border:
+        2px solid rgba(255, 255, 255, .95);
+
+      border-left:
+        none;
+
+      border-radius:
+        0 12px 12px 0;
+
+      font-family:
+        "Trebuchet MS",
+        "Arial Rounded MT Bold",
+        Arial,
+        sans-serif;
+
+      font-size:
+        13px;
+
+      font-weight:
+        900;
+
+      letter-spacing:
+        1px;
+
+      text-shadow:
+        0 1px 1px rgba(255, 255, 255, .9);
+
+      box-shadow:
+        0 4px 15px rgba(0, 0, 0, .18),
+        inset 0 1px 0 rgba(255, 255, 255, .95);
+
+      cursor:
+        pointer;
+
+      pointer-events:
+        auto;
+
+      transition:
+        background .2s ease,
+        box-shadow .2s ease,
+        color .2s ease;
+
+    }
+
+
+    #full-tile-info-tab:hover {
+
+      background:
+        linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 1),
+          rgba(225, 225, 225, 1)
+        );
+
+      color:
+        #222;
+
+      box-shadow:
+        0 5px 18px rgba(0, 0, 0, .24),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
+
+    }
+
+
+    #full-tile-info-tab:active {
+
+      transform:
+        translateY(1px);
+
+    }
+
+
+    /* ========================================================
+       INFORMATION CARD
+       ======================================================== */
+
+    #full-tile-info-card {
+
+      width:
+        0;
+
+      max-height:
+        72vh;
+
+      overflow:
+        hidden;
+
+      opacity:
+        0;
+
+      margin-left:
+        0;
+
+      box-sizing:
+        border-box;
+
+      background:
+        linear-gradient(
+          145deg,
+          rgba(255, 255, 255, .98),
+          rgba(232, 232, 232, .98)
+        );
+
+      border:
+        2px solid rgba(255, 255, 255, .95);
+
+      border-left:
+        none;
+
+      border-radius:
+        0 16px 16px 0;
+
+      box-shadow:
+        0 12px 35px rgba(0, 0, 0, .24),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
+
+      transition:
+        width .3s cubic-bezier(.2, .8, .2, 1),
+        opacity .2s ease,
+        margin-left .3s ease;
+
+      pointer-events:
+        none;
+
+    }
+
+
+    /* ========================================================
+       CLICK TO OPEN
+       ======================================================== */
+
+    #full-tile-info-panel.is-open
+    #full-tile-info-card {
+
+      width:
+        360px;
+
+      opacity:
+        1;
+
+      margin-left:
+        8px;
+
+      pointer-events:
+        auto;
+
+    }
+
+
+    /* ========================================================
+       CARD TITLE
+       ======================================================== */
+
+    #full-tile-info-title {
+
+      padding:
+        18px 20px 14px;
+
+      font-size:
+        23px;
+
+      font-weight:
+        900;
+
+      color:
+        #3d3d3d;
+
+      border-bottom:
+        2px solid rgba(100, 100, 100, .18);
+
+      text-shadow:
+        0 1px 1px rgba(255, 255, 255, .9);
+
+    }
+
+
+    /* ========================================================
+       TILE LIST
+       ======================================================== */
+
+    #full-tile-info-list {
+
+      max-height:
+        calc(72vh - 70px);
+
+      overflow-y:
+        auto;
+
+      padding:
+        8px 0 12px;
+
+    }
+
+
+    #full-tile-info-list::-webkit-scrollbar {
+
+      width:
+        8px;
+
+    }
+
+
+    #full-tile-info-list::-webkit-scrollbar-track {
+
+      background:
+        rgba(100, 100, 100, .06);
+
+    }
+
+
+    #full-tile-info-list::-webkit-scrollbar-thumb {
+
+      background:
+        rgba(90, 90, 90, .35);
+
+      border-radius:
+        10px;
+
+    }
+
+
+    #full-tile-info-list::-webkit-scrollbar-thumb:hover {
+
+      background:
+        rgba(70, 70, 70, .5);
+
+    }
+
+
+    /* ========================================================
+       TILE ROW
+       ======================================================== */
+
+    .full-tile-info-row {
+
+      display:
+        flex;
+
+      align-items:
+        flex-start;
+
+      padding:
+        7px 18px;
+
+      font-size:
+        14px;
+
+      line-height:
+        1.35;
+
+      color:
+        #424242;
+
+      cursor:
+        pointer;
+
+      transition:
+        background .15s ease,
+        color .15s ease;
+
+    }
+
+
+    .full-tile-info-row:nth-child(even) {
+
+      background:
+        rgba(0, 0, 0, .025);
+
+    }
+
+
+    .full-tile-info-row:hover {
+
+      background:
+        rgba(0, 0, 0, .09);
+
+      color:
+        #222;
+
+    }
+
+
+    /* ========================================================
+       TILE NUMBER
+       ======================================================== */
+
+    .full-tile-info-number {
+
+      flex:
+        0 0 32px;
+
+      font-weight:
+        900;
+
+      color:
+        #333;
+
+      text-align:
+        right;
+
+    }
+
+
+    /* ========================================================
+       SEPARATOR
+       ======================================================== */
+
+    .full-tile-info-separator {
+
+      flex:
+        0 0 auto;
+
+      margin:
+        0 5px;
+
+      color:
+        #888;
+
+      font-weight:
+        700;
+
+    }
+
+
+    /* ========================================================
+       TILE OBJECTIVE
+       ======================================================== */
+
+    .full-tile-info-text {
+
+      flex:
+        1;
+
+      font-weight:
+        600;
+
+      color:
+        #4a4a4a;
+
+    }
+
+
+    /* ========================================================
+       BOARD TILE SELECTION
+       ========================================================
+
+       Instead of a white glow, the hovered tile receives a
+       strong "selected" treatment.
+
+       IMPORTANT:
+       There is NO transform here.
+
+       Your board uses transform to position tiles, so this
+       effect deliberately does not touch it.
+       ======================================================== */
+
+    .tile.full-info-hover {
+
+      z-index:
+        8 !important;
+
+      /*
+       * Dark translucent selection layer.
+       */
+
+      background-color:
+        rgba(35, 35, 35, .34) !important;
+
+      /*
+       * Strong amber/gold selection edge.
+       *
+       * This is visually distinct from:
+       *
+       * Red   = Red Team
+       * Green = Green Team
+       */
+
+      outline:
+        3px solid rgba(255, 196, 65, .98);
+
+      outline-offset:
+        4px;
+
+      /*
+       * Very subtle gold halo.
+       */
+
+      box-shadow:
+        0 0 0 5px rgba(255, 196, 65, .25),
+        0 0 18px rgba(255, 196, 65, .65),
+        0 0 34px rgba(255, 196, 65, .35);
+
+      filter:
+        brightness(1.12)
+        saturate(1.08);
+
+      transition:
+        outline .12s ease,
+        box-shadow .12s ease,
+        filter .12s ease;
+
+    }
+
+
+    /* ========================================================
+       TEAM TILE PROTECTION
+       ========================================================
+
+       If a team occupies the tile being viewed in the list,
+       their red/green breathing effect remains dominant.
+
+       The selection indicator becomes a thin gold outline
+       around their existing colored glow.
+       ======================================================== */
+
+    .tile.team-red-glow.full-info-hover {
+
+      background-color:
+        rgba(35, 35, 35, .18) !important;
+
+      outline:
+        2px solid rgba(255, 196, 65, .85);
+
+      outline-offset:
+        4px;
+
+      filter:
+        brightness(1.06);
+
+    }
+
+
+    .tile.team-green-glow.full-info-hover {
+
+      background-color:
+        rgba(35, 35, 35, .18) !important;
+
+      outline:
+        2px solid rgba(255, 196, 65, .85);
+
+      outline-offset:
+        4px;
+
+      filter:
+        brightness(1.06);
+
+    }
+
+
+    /* ========================================================
+       DUAL TEAM TILE
+       ========================================================
+
+       The red/green dual rim remains the primary effect.
+
+       Gold simply identifies that this tile is currently
+       selected from the Full Tile List.
+       ======================================================== */
+
+    .tile.team-dual-glow.full-info-hover {
+
+      background-color:
+        rgba(35, 35, 35, .16) !important;
+
+      outline:
+        2px solid rgba(255, 196, 65, .85);
+
+      outline-offset:
+        4px;
+
+      filter:
+        brightness(1.04);
+
+    }
+
+
+    /* ========================================================
+       MOBILE
+       ======================================================== */
+
+    /* ========================================================
+       CURRENT OBJECTIVE ON TEAM PANELS
+       ======================================================== */
+
+    .team-status-main {
+      display: block;
+      font-weight: 900;
+    }
+
+    .team-current-objective {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      margin-top: 6px;
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.3;
+      font-weight: 600;
+      color: #ffffff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .65);
+    }
+
+
+    /* ========================================================
+       TEAM MARKERS INSIDE FULL TILE INFO
+       ======================================================== */
+
+    .full-tile-team-indicators {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 5px;
+      min-width: 30px;
+      margin-left: 10px;
+      padding-top: 1px;
+    }
+
+    .full-tile-team-dot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 13px;
+      height: 13px;
+      font-size: 13px;
+      line-height: 13px;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.22));
+    }
+
+    .full-tile-team-red {
+      color: #ef4444;
+    }
+
+    .full-tile-team-green {
+      color: #4ade80;
+    }
+
+    .full-tile-info-row.has-red-team,
+    .full-tile-info-row.has-green-team {
+      font-weight: 700;
+    }
+
+    .full-tile-info-row:hover .full-tile-team-red {
+      color: #dc2626;
+    }
+
+    .full-tile-info-row:hover .full-tile-team-green {
+      color: #22c55e;
+    }
+
+
+    @media (max-width: 700px) {
+
+      #full-tile-info-panel.is-open
+      #full-tile-info-card {
+
+        width:
+          min(320px, calc(100vw - 55px));
+
+      }
+
+
+      #full-tile-info-tab {
+
+        width:
+          125px;
+
+        height:
+          38px;
+
+        font-size:
+          11px;
+
+      }
+
+    }
+
+  `;
+
+
+  document.head.appendChild(style);
+
+
+  // ============================================================
+  // CLICK TO OPEN / CLOSE
+  // ============================================================
+
+  tab.addEventListener("click", (event) => {
+
+    event.stopPropagation();
+
+    const isOpen =
+      panel.classList.toggle("is-open");
+
+    tab.setAttribute(
+      "aria-expanded",
+      String(isOpen)
+    );
+
+    if (!isOpen) {
+
+      clearListHoverHighlight();
+
+    }
+
+  });
+
+
+  // ============================================================
+  // CLICK OUTSIDE TO CLOSE
+  // ============================================================
+
+  document.addEventListener("click", (event) => {
+
+    if (!panel.contains(event.target)) {
+
+      panel.classList.remove("is-open");
+
+      tab.setAttribute(
+        "aria-expanded",
+        "false"
+      );
+
+      clearListHoverHighlight();
+
+    }
+
+  });
+
+})();
