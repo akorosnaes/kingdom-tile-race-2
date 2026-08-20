@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kingdom Tile Race 2026</title>
+<link rel="icon" type="image/png" href="images/favicon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="board">
+  <div class="sparkle-layer" aria-hidden="true">
+    <span class="sparkle s1"></span><span class="sparkle s2"></span>
+    <span class="sparkle s3"></span><span class="sparkle s4"></span>
+    <span class="sparkle s5"></span><span class="sparkle s6"></span>
+    <span class="sparkle s7"></span><span class="sparkle s8"></span>
+    <span class="sparkle s9"></span><span class="sparkle s10"></span>
+    <span class="sparkle s11"></span><span class="sparkle s12"></span>
+    <span class="sparkle s13"></span><span class="sparkle s14"></span>
+    <span class="sparkle s15"></span><span class="sparkle s16"></span>
+  </div>
+<svg id="track" class="track" viewBox="0 0 1920 1080" preserveAspectRatio="none"></svg>
+  <div id="tiles" class="tiles"></div>
+<!-- =========================================================
+       BOARD LABELS — EDITABLE TEXT
+       START  = beside tile 1
+       PATH A = above the upper fork (42-44)
+       PATH B = below the lower fork (45-47)
+       FINISH = beside tile 65
+       ========================================================= -->
+  <div class="board-label start-label"><span>START</span></div>
+
+  <div class="board-label path-a-label">PATH A</div>
+  <div class="board-label path-b-label">PATH B</div>
+
+  <div class="board-label finish-label"><span>FINISH</span></div>
+  <div class="board-logo" aria-label="Event logo">
+    <img src="images/banner.png" alt="Event logo">
+  </div>
+
+  <!-- GOOGLE SHEET TEAM STATUS -->
+  <div class="team-status-panel" aria-live="polite">
+    <div id="red-team-status" class="team-status red-team-status">Red Team - Tile 1</div>
+    <div id="green-team-status" class="team-status green-team-status">Green Team - Tile 1</div>
+  </div>
+</main>
+<script src="app.js"></script>
+
+<script>
+/* ============================================================
+   V80 — LOCK LABELS TO THE BOARD'S ACTUAL RECTANGLE
+   ============================================================ */
+(() => {
+  const board = document.querySelector(".board");
+  if (!board) return;
+
+  const labels = {
+    start: document.querySelector(".start-label"),
+    finish: document.querySelector(".finish-label"),
+    pathA: document.querySelector(".path-a-label"),
+    pathB: document.querySelector(".path-b-label")
+  };
+
+  function lockLabels() {
+    if (!board.clientWidth || !board.clientHeight) return;
+
+    // All values below are percentages of the 1920x1080 board.
+    // CSS handles the scaling; JS only re-applies the board-relative
+    // positioning after a resize so labels never become viewport-fixed.
+    const set = (el, left, top, width, height) => {
+      if (!el) return;
+      el.style.left = left;
+      el.style.top = top;
+      el.style.width = width;
+      el.style.height = height;
+    };
+
+    set(labels.start,  "14.05%", "7.78%", "2.2%", "7.78%");
+    set(labels.finish, "84.75%", "62.0%", "3.0%", "7.78%");
+    set(labels.pathA,  "26.4%", "69.6%", "14.4%", "3.15%");
+    set(labels.pathB,  "26.4%", "91.8%", "14.4%", "3.15%");
+  }
+
+  window.addEventListener("load", lockLabels);
+  window.addEventListener("resize", lockLabels);
+  new ResizeObserver(lockLabels).observe(board);
+  lockLabels();
+})();
+</script>
+
+</body>
+</html>
