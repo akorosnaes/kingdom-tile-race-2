@@ -43,8 +43,8 @@ const GOOGLE_SHEET_REFRESH_MS = 5000;
    ============================================================ */
 
 const TEAM_DISPLAY_NAMES = {
-  red: "Team X",
-  green: "Team Y"
+  red: "Red Team",
+  green: "Green Team"
 };
 
 // V77 — LOGICAL BOARD COORDINATES
